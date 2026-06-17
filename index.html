@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🔍 AI Code Reviewer</title>
+  <style>
+    :root {
+      --bg:#07080f;--s1:#0d0e1c;--s2:#111225;--s3:#14152a;
+      --border:#1a1b35;--accent:#00d4aa;--a2:#00b894;--a3:#55efc4;
+      --blue:#3b82f6;--red:#ef4444;--amber:#f59e0b;--green:#22c55e;
+      --purple:#a855f7;--text:#e2e8f0;--muted:#64748b;--r:14px;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,monospace;min-height:100vh;}
+
+    /* scrollbar */
+    ::-webkit-scrollbar{width:5px;height:5px;}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+    /* Header */
+    header{
+      background:linear-gradient(135deg,#080915,#0c0d1f);
+      border-bottom:1px solid var(--border);
+      padding:16px 28px;display:flex;align-items:center;gap:12px;
+    }
+    .logo{
+      width:40px;height:40px;border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),var(--blue));
+      display:flex;align-items:center;justify-content:center;font-size:1.2rem;
+      box-shadow:0 0 18px rgba(0,212,170,0.3);flex-shrink:0;
+    }
+    header h1{font-size:1rem;font-weight:700;}
+    header p{font-size:0.68rem;color:var(--muted);margin-top:2px;}
+    .hbadge{
+      margin-left:auto;
+      background:rgba(0,212,170,0.1);border:1px solid rgba(0,212,170,0.3);
+      border-radius:20px;padding:4px 12px;font-size:0.68rem;color:var(--accent);font-weight:600;
+    }
+
+    /* Layout */
+    .main{display:grid;grid-template-columns:1fr 1fr;height:calc(100vh - 61px);}
+    @media(max-width:768px){.main{grid-template-columns:1fr;height:auto;}}
+
+    /* Panels */
+    .left-panel{
+      border-right:1px solid var(--border);
+      display:flex;flex-direction:column;overflow:hidden;
+    }
+    .right-panel{display:flex;flex-direction:column;overflow-y:auto;}
+
+    .panel-header{
+      padding:14px 18px;border-bottom:1px solid var(--border);
+      background:var(--s1);display:flex;align-items:center;gap:10px;flex-shrink:0;
+    }
+    .panel-header h2{font-size:0.78rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);}
+
+    /* Key bar */
+    #key-bar{
+      background:rgba(0,212,170,0.05);border-bottom:1px solid rgba(0,212,170,0.2);
+      padding:10px 18px;display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;
+    }
+    #key-bar label{font-size:0.7rem;color:var(--accent);font-weight:600;white-space:nowrap;}
+    #api-k{
+      flex:1;min-width:160px;background:rgba(255,255,255,0.04);
+      border:1px solid var(--border);border-radius:8px;
+      padding:7px 12px;color:var(--text);font-family:monospace;font-size:0.75rem;outline:none;
+      transition:border-color .2s;
+    }
+    #api-k:focus{border-color:var(--accent);}
+    #key-ok{font-size:0.68rem;color:var(--green);display:none;white-space:nowrap;}
+
+    /* Lang selector */
+    .lang-row{
+      padding:10px 18px;border-bottom:1px solid var(--border);
+      display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;
+      background:var(--s2);
+    }
+    .lang-btn{
+      background:var(--s3);border:1px solid var(--border);
+      border-radius:20px;padding:4px 12px;font-size:0.7rem;
+      color:var(--muted);cursor:pointer;transition:all .2s;font-family:inherit;
+    }
+    .lang-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,170,0.1);}
+
+    /* Code editor */
+    #code-input{
+      flex:1;width:100%;background:transparent;border:none;
+      padding:18px;color:#e2e8f0;font-family:'Courier New',monospace;
+      font-size:0.82rem;line-height:1.7;resize:none;outline:none;
+      tab-size:2;
+    }
+    #code-input::placeholder{color:var(--border);}
+
+    /* Review btn */
+    .review-bar{
+      padding:12px 18px;border-top:1px solid var(--border);
+      background:var(--s1);display:flex;align-items:center;gap:10px;flex-shrink:0;
+    }
+    .btn{
+      background:linear-gradient(135deg,var(--accent),var(--blue));
+      border:none;border-radius:8px;padding:9px 20px;
+      color:#fff;font-size:0.8rem;font-weight:700;cursor:pointer;
+      transition:opacity .2s,transform .1s;letter-spacing:.3px;
+    }
+    .btn:hover{opacity:.88;}
+    .btn:active{transform:scale(.97);}
+    .btn:disabled{opacity:.3;cursor:not-allowed;}
+    .btn.sm{padding:6px 14px;font-size:0.72rem;}
+    .btn.ghost{background:var(--s3);border:1px solid var(--border);color:var(--muted);}
+    .btn.ghost:hover{border-color:var(--accent);color:var(--accent);}
+    #char-count{font-size:0.68rem;color:var(--muted);margin-left:auto;}
+
+    /* Right panel content */
+    .rp-inner{padding:20px;}
+
+    /* Score card */
+    #score-card{display:none;margin-bottom:20px;}
+    .score-ring-wrap{text-align:center;padding:24px 0 16px;}
+    .score-ring{
+      width:110px;height:110px;border-radius:50%;
+      display:inline-flex;align-items:center;justify-content:center;
+      flex-direction:column;position:relative;margin:0 auto;
+    }
+    .score-num{font-size:2rem;font-weight:800;line-height:1;}
+    .score-label{font-size:0.65rem;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:1px;}
+
+    .metrics-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px;}
+    @media(max-width:480px){.metrics-row{grid-template-columns:repeat(2,1fr);}}
+    .metric{
+      background:var(--s2);border:1px solid var(--border);
+      border-radius:10px;padding:12px;text-align:center;
+    }
+    .metric-n{font-size:1.3rem;font-weight:700;}
+    .metric-l{font-size:0.62rem;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.5px;}
+
+    /* Section */
+    .section{margin-bottom:18px;}
+    .sec-head{
+      font-size:0.68rem;text-transform:uppercase;letter-spacing:1px;
+      color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:7px;
+    }
+    .sec-head::after{content:'';flex:1;height:1px;background:var(--border);}
+
+    /* Issue cards */
+    .issue{
+      background:var(--s2);border:1px solid var(--border);
+      border-radius:var(--r);padding:14px 16px;margin-bottom:10px;
+      border-left:3px solid var(--border);transition:transform .15s;
+    }
+    .issue:hover{transform:translateX(2px);}
+    .issue.critical{border-left-color:var(--red);}
+    .issue.warning {border-left-color:var(--amber);}
+    .issue.info    {border-left-color:var(--blue);}
+    .issue.good    {border-left-color:var(--green);}
+
+    .issue-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+    .issue-badge{
+      font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+      padding:2px 8px;border-radius:20px;
+    }
+    .badge-critical{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3);}
+    .badge-warning {background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);}
+    .badge-info    {background:rgba(59,130,246,.15);color:var(--blue);border:1px solid rgba(59,130,246,.3);}
+    .badge-good    {background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.3);}
+
+    .issue-line{font-size:0.68rem;color:var(--muted);margin-left:auto;}
+    .issue-title{font-size:0.82rem;font-weight:600;margin-bottom:4px;}
+    .issue-desc{font-size:0.76rem;color:#c4c4e0;line-height:1.55;}
+    .issue-fix{
+      margin-top:8px;padding:8px 10px;
+      background:rgba(0,212,170,0.06);border:1px solid rgba(0,212,170,0.15);
+      border-radius:8px;font-size:0.73rem;color:var(--a3);line-height:1.5;
+      font-family:'Courier New',monospace;
+    }
+
+    /* Summary */
+    .summary-box{
+      background:var(--s2);border:1px solid var(--border);border-radius:var(--r);
+      padding:16px;font-size:0.8rem;line-height:1.7;color:#c4c4e0;margin-bottom:18px;
+    }
+
+    /* Positive */
+    .positive{
+      background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);
+      border-radius:var(--r);padding:14px 16px;margin-bottom:10px;
+      font-size:0.78rem;color:#bbf7d0;line-height:1.55;display:flex;gap:10px;
+    }
+
+    /* Loading */
+    #loading{
+      display:none;padding:60px 20px;text-align:center;
+    }
+    .spin{
+      width:48px;height:48px;border:3px solid var(--border);
+      border-top-color:var(--accent);border-radius:50%;
+      animation:sp .8s linear infinite;margin:0 auto 18px;
+    }
+    @keyframes sp{to{transform:rotate(360deg)}}
+    #load-msg{font-size:0.78rem;color:var(--muted);}
+    .load-steps{display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap;}
+    .lstep{
+      background:rgba(255,255,255,.04);border:1px solid var(--border);
+      border-radius:20px;padding:3px 10px;font-size:0.65rem;color:var(--muted);transition:all .35s;
+    }
+    .lstep.on{border-color:var(--accent);color:var(--accent);background:rgba(0,212,170,.08);}
+    .lstep.done{border-color:var(--green);color:var(--green);}
+
+    /* Empty state */
+    #empty-state{
+      padding:60px 20px;text-align:center;color:var(--muted);
+    }
+    #empty-state .big{font-size:3rem;margin-bottom:16px;}
+    #empty-state p{font-size:0.8rem;line-height:1.7;max-width:280px;margin:0 auto;}
+
+    /* Error */
+    #err-box{
+      display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
+      border-radius:var(--r);padding:14px;font-size:0.78rem;color:#fca5a5;margin-bottom:16px;
+    }
+
+    /* Export row */
+    .export-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+
+    /* Syntax highlight hint */
+    .editor-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🔍</div>
+  <div>
+    <h1>AI Code Reviewer</h1>
+    <p>Instant review, bug detection & improvement suggestions</p>
+  </div>
+  <div class="hbadge">Claude AI</div>
+</header>
+
+<div class="main">
+
+  <!-- LEFT: Code Input -->
+  <div class="left-panel">
+    <div id="key-bar">
+      <label>🔑 API KEY</label>
+      <input type="password" id="api-k" placeholder="sk-ant-api03-..."/>
+      <button class="btn sm" onclick="saveKey()">Connect</button>
+      <span id="key-ok">✓ Live</span>
+    </div>
+
+    <div class="lang-row">
+      <span style="font-size:0.7rem;color:var(--muted);">Lang:</span>
+      <button class="lang-btn active" data-lang="JavaScript" onclick="setLang(this)">JS</button>
+      <button class="lang-btn" data-lang="Python" onclick="setLang(this)">Python</button>
+      <button class="lang-btn" data-lang="TypeScript" onclick="setLang(this)">TS</button>
+      <button class="lang-btn" data-lang="React JSX" onclick="setLang(this)">React</button>
+      <button class="lang-btn" data-lang="HTML" onclick="setLang(this)">HTML</button>
+      <button class="lang-btn" data-lang="CSS" onclick="setLang(this)">CSS</button>
+      <button class="lang-btn" data-lang="Java" onclick="setLang(this)">Java</button>
+      <button class="lang-btn" data-lang="auto-detect" onclick="setLang(this)">Auto</button>
+    </div>
+
+    <div class="editor-wrap">
+      <textarea id="code-input" spellcheck="false"
+        placeholder="// Paste your code here...
+function example() {
+  var x = 1
+  if(x == '1') {
+    console.log('hello')
+  }
+}"
+        oninput="updateCount()"></textarea>
+    </div>
+
+    <div class="review-bar">
+      <button class="btn" id="review-btn" onclick="reviewCode()">🔍 Review Code</button>
+      <button class="btn ghost sm" onclick="loadSample()">Load sample</button>
+      <span id="char-count">0 chars</span>
+    </div>
+  </div>
+
+  <!-- RIGHT: Results -->
+  <div class="right-panel">
+    <div class="panel-header">
+      <h2>📊 Review Results</h2>
+      <div id="result-badge" style="display:none"></div>
+      <div style="margin-left:auto;display:flex;gap:8px;" id="action-btns">
+      </div>
+    </div>
+
+    <div class="rp-inner">
+      <div id="err-box"></div>
+
+      <!-- Empty -->
+      <div id="empty-state">
+        <div class="big">🔍</div>
+        <p>Paste your code on the left and click <strong>Review Code</strong> to get an AI-powered code review.</p>
+        <br>
+        <p style="font-size:0.7rem;opacity:.5">Detects bugs · Security issues · Performance · Best practices · Style</p>
+      </div>
+
+      <!-- Loading -->
+      <div id="loading">
+        <div class="spin"></div>
+        <div id="load-msg">Analyzing your code...</div>
+        <div class="load-steps">
+          <div class="lstep" id="ls1">Parsing</div>
+          <div class="lstep" id="ls2">Bug scan</div>
+          <div class="lstep" id="ls3">Security</div>
+          <div class="lstep" id="ls4">Performance</div>
+          <div class="lstep" id="ls5">Scoring</div>
+        </div>
+      </div>
+
+      <!-- Score -->
+      <div id="score-card">
+        <div class="score-ring-wrap">
+          <div class="score-ring" id="score-ring">
+            <span class="score-num" id="score-num">—</span>
+            <span class="score-label">/ 100</span>
+          </div>
+        </div>
+        <div class="metrics-row">
+          <div class="metric"><div class="metric-n" id="m-bugs" style="color:var(--red)">0</div><div class="metric-l">Bugs</div></div>
+          <div class="metric"><div class="metric-n" id="m-sec"  style="color:var(--amber)">0</div><div class="metric-l">Security</div></div>
+          <div class="metric"><div class="metric-n" id="m-perf" style="color:var(--blue)">0</div><div class="metric-l">Perf</div></div>
+          <div class="metric"><div class="metric-n" id="m-style" style="color:var(--purple)">0</div><div class="metric-l">Style</div></div>
+        </div>
+      </div>
+
+      <!-- Results body -->
+      <div id="results" style="display:none">
+        <div class="section">
+          <div class="sec-head">Summary</div>
+          <div class="summary-box" id="summary-box"></div>
+        </div>
+
+        <div class="section" id="issues-section">
+          <div class="sec-head">Issues Found</div>
+          <div id="issues-list"></div>
+        </div>
+
+        <div class="section" id="positives-section">
+          <div class="sec-head">What's Good</div>
+          <div id="positives-list"></div>
+        </div>
+
+        <div class="export-row">
+          <button class="btn sm" onclick="copyReport()">📋 Copy Report</button>
+          <button class="btn ghost sm" onclick="exportMD()">⬇ Export .md</button>
+          <button class="btn ghost sm" onclick="clearAll()" style="margin-left:auto">↩ Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let apiKey = localStorage.getItem('cr_ant_key') || '';
+  let lang = 'JavaScript';
+  let lastReview = null;
+
+  if (apiKey) {
+    document.getElementById('api-k').value = apiKey;
+    document.getElementById('key-ok').style.display = 'inline';
+  }
+
+  function saveKey() {
+    const v = document.getElementById('api-k').value.trim();
+    if (!v.startsWith('sk-ant')) { showErr('Must start with sk-ant...'); return; }
+    apiKey = v;
+    localStorage.setItem('cr_ant_key', apiKey);
+    document.getElementById('key-ok').style.display = 'inline';
+  }
+
+  function setLang(el) {
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    lang = el.dataset.lang;
+  }
+
+  function updateCount() {
+    const n = document.getElementById('code-input').value.length;
+    document.getElementById('char-count').textContent = n.toLocaleString() + ' chars';
+  }
+
+  function showErr(msg) {
+    const b = document.getElementById('err-box');
+    b.textContent = 'Error: ' + msg;
+    b.style.display = 'block';
+    setTimeout(() => b.style.display = 'none', 7000);
+  }
+
+  function setLoadStep(n) {
+    for (let i = 1; i <= 5; i++) {
+      const el = document.getElementById('ls' + i);
+      if (i < n) el.className = 'lstep done';
+      else if (i === n) el.className = 'lstep on';
+      else el.className = 'lstep';
+    }
+  }
+
+  async function reviewCode() {
+    if (!apiKey) { showErr('Enter your API key first.'); return; }
+    const code = document.getElementById('code-input').value.trim();
+    if (!code) { showErr('Paste some code first.'); return; }
+
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('score-card').style.display = 'none';
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('review-btn').disabled = true;
+    document.getElementById('err-box').style.display = 'none';
+
+    let step = 1;
+    setLoadStep(1);
+    const stepTimer = setInterval(() => { if (step < 5) setLoadStep(++step); }, 700);
+
+    const prompt = `You are a senior software engineer. Perform a thorough code review of this ${lang === 'auto-detect' ? 'code' : lang + ' code'}.
+
+Return ONLY a JSON object, no markdown, no explanation:
+{
+  "score": 75,
+  "language": "detected language",
+  "summary": "2-3 sentence overall assessment",
+  "metrics": {
+    "bugs": 2,
+    "security": 1,
+    "performance": 1,
+    "style": 2
+  },
+  "issues": [
+    {
+      "severity": "critical|warning|info",
+      "title": "short issue name",
+      "description": "what the problem is",
+      "line": "line number or range if identifiable, else null",
+      "fix": "concrete fix or corrected code snippet"
+    }
+  ],
+  "positives": [
+    "thing done well",
+    "another strength"
+  ]
+}
+
+score is 0-100. metrics count number of issues per category.
+issues array: include ALL problems found.
+positives: list actual strengths, not generic praise.
+
+Code to review:
+\`\`\`
+${code}
+\`\`\``;
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-calls': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2500,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || 'API error ' + res.status);
+
+      clearInterval(stepTimer);
+      setLoadStep(5);
+
+      const raw = data.content?.[0]?.text || '{}';
+      const clean = raw.replace(/```json|```/g, '').trim();
+      lastReview = JSON.parse(clean);
+
+      setTimeout(() => {
+        document.getElementById('loading').style.display = 'none';
+        renderReview(lastReview);
+      }, 400);
+
+    } catch (e) {
+      clearInterval(stepTimer);
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('empty-state').style.display = 'block';
+      document.getElementById('review-btn').disabled = false;
+      showErr(e.message);
+    }
+  }
+
+  function scoreColor(s) {
+    if (s >= 80) return 'var(--green)';
+    if (s >= 60) return 'var(--amber)';
+    return 'var(--red)';
+  }
+
+  function renderReview(d) {
+    document.getElementById('review-btn').disabled = false;
+
+    // Score
+    const sc = d.score || 0;
+    const ring = document.getElementById('score-ring');
+    ring.style.background = `conic-gradient(${scoreColor(sc)} ${sc}%, var(--border) 0)`;
+    ring.style.boxShadow = `0 0 20px ${scoreColor(sc)}44`;
+    document.getElementById('score-num').textContent = sc;
+    document.getElementById('score-num').style.color = scoreColor(sc);
+    document.getElementById('score-card').style.display = 'block';
+
+    const m = d.metrics || {};
+    document.getElementById('m-bugs').textContent  = m.bugs  || 0;
+    document.getElementById('m-sec').textContent   = m.security || 0;
+    document.getElementById('m-perf').textContent  = m.performance || 0;
+    document.getElementById('m-style').textContent = m.style || 0;
+
+    // Summary
+    document.getElementById('summary-box').textContent = d.summary || '';
+
+    // Issues
+    const issues = d.issues || [];
+    document.getElementById('issues-list').innerHTML = issues.length
+      ? issues.map(iss => `
+          <div class="issue ${iss.severity}">
+            <div class="issue-top">
+              <span class="issue-badge badge-${iss.severity}">${iss.severity}</span>
+              ${iss.line ? `<span class="issue-line">Line ${iss.line}</span>` : ''}
+            </div>
+            <div class="issue-title">${escHtml(iss.title)}</div>
+            <div class="issue-desc">${escHtml(iss.description)}</div>
+            ${iss.fix ? `<div class="issue-fix">${escHtml(iss.fix)}</div>` : ''}
+          </div>`).join('')
+      : '<div style="color:var(--green);font-size:0.8rem;padding:12px 0">No issues found!</div>';
+
+    // Positives
+    const pos = d.positives || [];
+    document.getElementById('positives-list').innerHTML = pos.map(p => `
+      <div class="positive"><span>✓</span><span>${escHtml(p)}</span></div>`).join('');
+
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('err-box').style.display = 'none';
+  }
+
+  function escHtml(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function copyReport() {
+    if (!lastReview) return;
+    const r = lastReview;
+    const text = [
+      `# Code Review Report`,
+      `**Score:** ${r.score}/100  |  **Language:** ${r.language}`,
+      ``,
+      `## Summary`,
+      r.summary,
+      ``,
+      `## Issues (${(r.issues||[]).length})`,
+      ...(r.issues||[]).map(i => `### [${i.severity.toUpperCase()}] ${i.title}${i.line ? ' (Line '+i.line+')' : ''}\n${i.description}\n**Fix:** ${i.fix||'N/A'}`),
+      ``,
+      `## Strengths`,
+      ...(r.positives||[]).map(p => `- ${p}`)
+    ].join('\n');
+    navigator.clipboard.writeText(text).then(() => alert('Report copied!'));
+  }
+
+  function exportMD() {
+    if (!lastReview) return;
+    const r = lastReview;
+    const text = [
+      `# Code Review Report`,
+      ``,
+      `**Score:** ${r.score}/100 | **Language:** ${r.language}`,
+      ``,
+      `## Summary`,
+      r.summary,
+      ``,
+      `## Issues`,
+      ...(r.issues||[]).map(i => `### [${i.severity.toUpperCase()}] ${i.title}\n${i.description}\n\`\`\`\n${i.fix||''}\n\`\`\``),
+      ``,
+      `## Strengths`,
+      ...(r.positives||[]).map(p => `- ${p}`)
+    ].join('\n');
+    const blob = new Blob([text], {type:'text/markdown'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'code-review.md';
+    a.click();
+  }
+
+  function clearAll() {
+    lastReview = null;
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('score-card').style.display = 'none';
+    document.getElementById('empty-state').style.display = 'block';
+    document.getElementById('code-input').value = '';
+    updateCount();
+  }
+
+  function loadSample() {
+    document.getElementById('code-input').value = `// User authentication handler
+function login(req, res) {
+  var user = db.query("SELECT * FROM users WHERE email = '" + req.body.email + "'")
+  
+  if (user.password == req.body.password) {
+    res.cookie('userId', user.id)
+    res.send({ success: true, user: user })
+  } else {
+    res.send({ success: false })
+  }
+}
+
+function getUser(id) {
+  var result = []
+  for (var i = 0; i < users.length; i++) {
+    for (var j = 0; j < users.length; j++) {
+      if (users[i].id == id) result.push(users[i])
+    }
+  }
+  return result[0]
+}`;
+    updateCount();
+    setLang(document.querySelector('[data-lang="JavaScript"]'));
+  }
+
+  updateCount();
+</script>
+</body>
+</html>
